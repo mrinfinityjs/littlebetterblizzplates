@@ -5293,9 +5293,7 @@ local function HandleNamePlateRemoved(unit)
     end
     if frame.bbpNonCasterHidden then
         frame.bbpNonCasterHidden = nil
-        frame.bbpNonCasterChangingAlpha = true
         frame:SetAlpha(1)
-        frame.bbpNonCasterChangingAlpha = nil
     end
 
 end

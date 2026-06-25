@@ -1013,42 +1013,66 @@ end
 
 BBP.activeCasterCount = 0
 
+-- OnUpdate controller: continuously re-applies alpha=0 to non-caster frames while any
+-- interruptible cast is active. Needed because Blizzard's nameplate system resets alpha
+-- in ways that hooksecurefunc on SetAlpha cannot reliably intercept in retail 11.x.
+local BBP_hideCasterController = CreateFrame("Frame")
+BBP_hideCasterController.elapsed = 0
+BBP_hideCasterController:SetScript("OnUpdate", function(self, dt)
+    self.elapsed = self.elapsed + dt
+    if self.elapsed < 0.05 then return end
+    self.elapsed = 0
+    if BBP.activeCasterCount <= 0 or not BetterBlizzPlatesDB.hideByCastEnabled then
+        self:Hide()
+        return
+    end
+    local scaleValue = BetterBlizzPlatesDB.castingNpScaleValue or 1.3
+    for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
+        local frame = nameplate.UnitFrame
+        if frame and frame.unit and not frame:IsForbidden() then
+            if frame.bbpIsCasting then
+                if frame:GetAlpha() < 0.9 then frame:SetAlpha(1) end
+                if frame:GetScale() < scaleValue then frame:SetScale(scaleValue) end
+            elseif frame.bbpNonCasterHidden then
+                if frame:GetAlpha() > 0.05 then frame:SetAlpha(0) end
+            end
+        end
+    end
+end)
+BBP_hideCasterController:Hide()
+
 local function HideNonCasters()
     local db = BetterBlizzPlatesDB
     local scaleValue = db.castingNpScaleValue or 1.3
     for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
         local frame = nameplate.UnitFrame
-        if frame and frame.unit and not frame:IsForbidden() and UnitCanAttack("player", frame.unit) then
+        if frame and frame.unit and not frame:IsForbidden() then
             if frame.bbpIsCasting then
                 if frame.bbpNonCasterHidden then
                     frame.bbpNonCasterHidden = nil
-                    frame.bbpNonCasterChangingAlpha = true
                     frame:SetAlpha(1)
-                    frame.bbpNonCasterChangingAlpha = nil
                 end
                 frame:SetScale(scaleValue)
-            else
+            elseif not UnitIsFriend("player", frame.unit) then
                 frame.bbpNonCasterHidden = true
-                frame.bbpNonCasterChangingAlpha = true
                 frame:SetAlpha(0)
-                frame.bbpNonCasterChangingAlpha = nil
                 frame:SetScale(1)
             end
         end
     end
+    BBP_hideCasterController:Show()
 end
 
 function BBP.RestoreNonCasters()
+    BBP_hideCasterController:Hide()
     for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
         local frame = nameplate.UnitFrame
         if frame and not frame:IsForbidden() then
             if frame.bbpNonCasterHidden then
                 frame.bbpNonCasterHidden = nil
-                frame.bbpNonCasterChangingAlpha = true
                 frame:SetAlpha(1)
-                frame.bbpNonCasterChangingAlpha = nil
             end
-            if frame.unit and UnitCanAttack("player", frame.unit) and frame:GetScale() ~= 1 then
+            if frame.unit and not UnitIsFriend("player", frame.unit) and frame:GetScale() ~= 1 then
                 frame:SetScale(1)
             end
         end
@@ -1106,16 +1130,14 @@ function BBP.CastbarOnEvent(frame, event)
 
     if db.hideByCastEnabled then
         if CastStartEvents[event] then
-            if UnitCanAttack("player", self.unit) then
-                local notInterruptible
+            if frame.unit and not UnitIsFriend("player", frame.unit) then
+                local shouldHide = true
                 if db.hideByCastOnlyInterruptable then
-                    if self.casting then
-                        notInterruptible = select(8, UnitCastingInfo(self.unit))
-                    elseif self.channeling then
-                        notInterruptible = select(7, UnitChannelInfo(self.unit))
-                    end
+                    local _, _, _, _, _, _, _, niCast = UnitCastingInfo(frame.unit)
+                    local _, _, _, _, _, _, niChannel = UnitChannelInfo(frame.unit)
+                    if niCast or niChannel then shouldHide = false end
                 end
-                if not notInterruptible then
+                if shouldHide then
                     if not frame.bbpIsCasting then
                         frame.bbpIsCasting = true
                         BBP.activeCasterCount = BBP.activeCasterCount + 1
@@ -1338,18 +1360,6 @@ end
 
 function BBP.HookCastbarOnEvent(frame)
     if frame.hookedCastbarOnEvent then return end
-
-    -- Persistent alpha lock: keep non-caster frames invisible while bbpNonCasterHidden is set
-    if not frame.bbpNonCasterAlphaHook then
-        hooksecurefunc(frame, "SetAlpha", function(self, alpha)
-            if self.bbpNonCasterHidden and alpha ~= 0 and not self.bbpNonCasterChangingAlpha and not self:IsForbidden() then
-                self.bbpNonCasterChangingAlpha = true
-                self:SetAlpha(0)
-                self.bbpNonCasterChangingAlpha = nil
-            end
-        end)
-        frame.bbpNonCasterAlphaHook = true
-    end
 
     frame.castBar:HookScript("OnEvent", function(castBar, event, eventUnit, castGUID, spellID, interruptedByOrCastBarID)
         if frame and not frame:IsForbidden() then
