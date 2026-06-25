@@ -1015,7 +1015,6 @@ BBP.activeCasterCount = 0
 
 local function HideNonCasters()
     local db = BetterBlizzPlatesDB
-    local hideTargetHighlight = db.hideTargetHighlight
     local scaleValue = db.castingNpScaleValue or 1.3
     for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
         local frame = nameplate.UnitFrame
@@ -1023,16 +1022,16 @@ local function HideNonCasters()
             if frame.bbpIsCasting then
                 if frame.bbpNonCasterHidden then
                     frame.bbpNonCasterHidden = nil
-                    if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(1) end
-                    frame.name:SetAlpha(1)
-                    if not hideTargetHighlight then frame.selectionHighlight:SetAlpha(0.22) end
+                    frame.bbpNonCasterChangingAlpha = true
+                    frame:SetAlpha(1)
+                    frame.bbpNonCasterChangingAlpha = nil
                 end
                 frame:SetScale(scaleValue)
             else
                 frame.bbpNonCasterHidden = true
-                if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(0) end
-                frame.name:SetAlpha(0)
-                frame.selectionHighlight:SetAlpha(0)
+                frame.bbpNonCasterChangingAlpha = true
+                frame:SetAlpha(0)
+                frame.bbpNonCasterChangingAlpha = nil
                 frame:SetScale(1)
             end
         end
@@ -1040,15 +1039,14 @@ local function HideNonCasters()
 end
 
 function BBP.RestoreNonCasters()
-    local hideTargetHighlight = BetterBlizzPlatesDB.hideTargetHighlight
     for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
         local frame = nameplate.UnitFrame
         if frame and not frame:IsForbidden() then
             if frame.bbpNonCasterHidden then
                 frame.bbpNonCasterHidden = nil
-                if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(1) end
-                frame.name:SetAlpha(1)
-                if not hideTargetHighlight then frame.selectionHighlight:SetAlpha(0.22) end
+                frame.bbpNonCasterChangingAlpha = true
+                frame:SetAlpha(1)
+                frame.bbpNonCasterChangingAlpha = nil
             end
             if frame.unit and UnitCanAttack("player", frame.unit) and frame:GetScale() ~= 1 then
                 frame:SetScale(1)
@@ -1340,6 +1338,19 @@ end
 
 function BBP.HookCastbarOnEvent(frame)
     if frame.hookedCastbarOnEvent then return end
+
+    -- Persistent alpha lock: keep non-caster frames invisible while bbpNonCasterHidden is set
+    if not frame.bbpNonCasterAlphaHook then
+        hooksecurefunc(frame, "SetAlpha", function(self, alpha)
+            if self.bbpNonCasterHidden and alpha ~= 0 and not self.bbpNonCasterChangingAlpha and not self:IsForbidden() then
+                self.bbpNonCasterChangingAlpha = true
+                self:SetAlpha(0)
+                self.bbpNonCasterChangingAlpha = nil
+            end
+        end)
+        frame.bbpNonCasterAlphaHook = true
+    end
+
     frame.castBar:HookScript("OnEvent", function(castBar, event, eventUnit, castGUID, spellID, interruptedByOrCastBarID)
         if frame and not frame:IsForbidden() then
             if CastStopEvents[event] then
