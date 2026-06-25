@@ -1011,6 +1011,52 @@ local function HideChargeTiers(castBar)
     end
 end
 
+BBP.activeCasterCount = 0
+
+local function HideNonCasters()
+    local db = BetterBlizzPlatesDB
+    local hideTargetHighlight = db.hideTargetHighlight
+    local scaleValue = db.castingNpScaleValue or 1.3
+    for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
+        local frame = nameplate.UnitFrame
+        if frame and frame.unit and not frame:IsForbidden() and UnitCanAttack("player", frame.unit) then
+            if frame.bbpIsCasting then
+                if frame.bbpNonCasterHidden then
+                    frame.bbpNonCasterHidden = nil
+                    if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(1) end
+                    frame.name:SetAlpha(1)
+                    if not hideTargetHighlight then frame.selectionHighlight:SetAlpha(0.22) end
+                end
+                frame:SetScale(scaleValue)
+            else
+                frame.bbpNonCasterHidden = true
+                if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(0) end
+                frame.name:SetAlpha(0)
+                frame.selectionHighlight:SetAlpha(0)
+                frame:SetScale(1)
+            end
+        end
+    end
+end
+
+function BBP.RestoreNonCasters()
+    local hideTargetHighlight = BetterBlizzPlatesDB.hideTargetHighlight
+    for _, nameplate in pairs(C_NamePlate.GetNamePlates()) do
+        local frame = nameplate.UnitFrame
+        if frame and not frame:IsForbidden() then
+            if frame.bbpNonCasterHidden then
+                frame.bbpNonCasterHidden = nil
+                if frame.HealthBarsContainer then frame.HealthBarsContainer:SetAlpha(1) end
+                frame.name:SetAlpha(1)
+                if not hideTargetHighlight then frame.selectionHighlight:SetAlpha(0.22) end
+            end
+            if frame.unit and UnitCanAttack("player", frame.unit) and frame:GetScale() ~= 1 then
+                frame:SetScale(1)
+            end
+        end
+    end
+end
+
 -- quickfix for now
 function BBP.CastbarOnEvent(frame, event)
     local self = frame.castBar
@@ -1036,6 +1082,60 @@ function BBP.CastbarOnEvent(frame, event)
     if frame.hideCastbarOverride then
         frame.castBar:Hide()
         return
+    end
+
+    if db.castingNpScaleEnabled then
+        if CastStartEvents[event] then
+            if UnitCanAttack("player", self.unit) then
+                local notInterruptible
+                if db.castingNpScaleOnlyInterruptable then
+                    if self.casting then
+                        notInterruptible = select(8, UnitCastingInfo(self.unit))
+                    elseif self.channeling then
+                        notInterruptible = select(7, UnitChannelInfo(self.unit))
+                    end
+                end
+                if not notInterruptible then
+                    frame:SetScale(db.castingNpScaleValue or 1.3)
+                end
+            end
+        elseif CastStopEvents[event] then
+            if frame:GetScale() ~= 1 then
+                frame:SetScale(1)
+            end
+        end
+    end
+
+    if db.hideByCastEnabled then
+        if CastStartEvents[event] then
+            if UnitCanAttack("player", self.unit) then
+                local notInterruptible
+                if db.hideByCastOnlyInterruptable then
+                    if self.casting then
+                        notInterruptible = select(8, UnitCastingInfo(self.unit))
+                    elseif self.channeling then
+                        notInterruptible = select(7, UnitChannelInfo(self.unit))
+                    end
+                end
+                if not notInterruptible then
+                    if not frame.bbpIsCasting then
+                        frame.bbpIsCasting = true
+                        BBP.activeCasterCount = BBP.activeCasterCount + 1
+                    end
+                    HideNonCasters()
+                end
+            end
+        elseif CastStopEvents[event] then
+            if frame.bbpIsCasting then
+                frame.bbpIsCasting = nil
+                BBP.activeCasterCount = math.max(0, BBP.activeCasterCount - 1)
+                if BBP.activeCasterCount == 0 then
+                    BBP.RestoreNonCasters()
+                else
+                    HideNonCasters()
+                end
+            end
+        end
     end
 
     if alwaysHideFriendlyCastbar or alwaysHideEnemyCastbar or BBP.hideFriendlyCastbar then

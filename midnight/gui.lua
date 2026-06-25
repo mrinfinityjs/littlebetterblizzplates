@@ -1067,6 +1067,8 @@ local function CreateSlider(parent, label, minValue, maxValue, stepValue, elemen
                     BetterBlizzPlatesDB.castBarEmphasisSparkHeight = value
                 elseif element == "castBarEmphasisIconScale" then
                     BetterBlizzPlatesDB.castBarEmphasisIconScale = value
+                elseif element == "castingNpScaleValue" then
+                    BetterBlizzPlatesDB.castingNpScaleValue = value
                 elseif element == "classIndicatorXPos" then
                     BetterBlizzPlatesDB.classIndicatorXPos = value
                 elseif element == "classIndicatorYPos" then
@@ -8691,8 +8693,28 @@ local function guiCastbar()
         BBP.ResetToDefaultHeight(castBarHeight)
     end)
 
+    local castingNpScaleEnabled = CreateCheckbox("castingNpScaleEnabled", "Caster Nameplate Scale", enableCastbarCustomization)
+    castingNpScaleEnabled:SetPoint("TOPLEFT", castBarHeight, "BOTTOMLEFT", -12, -3)
+    CreateTooltipTwo(castingNpScaleEnabled, "Caster Nameplate Scale", "Enlarge enemy nameplates while they are casting, making casters easier to spot and kick.", "Only applies to enemy nameplates. Use the slider below to control how large they become.")
+
+    local castingNpScaleOnlyInterruptable = CreateCheckbox("castingNpScaleOnlyInterruptable", "Interruptible Only", castingNpScaleEnabled)
+    castingNpScaleOnlyInterruptable:SetPoint("LEFT", castingNpScaleEnabled.text, "RIGHT", -1, 0)
+    CreateTooltipTwo(castingNpScaleOnlyInterruptable, "Interruptible Casts Only", "Only scale up the nameplate for casts that can be interrupted.", "Non-interruptible casts (shield icon) will not trigger the scale.")
+
+    local castingNpScaleValue = CreateSlider(enableCastbarCustomization, "Caster Scale Amount", 1.01, 2, 0.01, "castingNpScaleValue")
+    castingNpScaleValue:SetPoint("TOPLEFT", castingNpScaleEnabled, "BOTTOMLEFT", 12, -10)
+    CreateTooltipTwo(castingNpScaleValue, "Caster Scale Amount", "How much larger the nameplate becomes while the enemy is casting.\n1.3 = 30% larger than normal.", nil, nil, "castingNpScaleValue")
+
+    local hideByCastEnabled = CreateCheckbox("hideByCastEnabled", "Hide Non-Casters During Cast", enableCastbarCustomization)
+    hideByCastEnabled:SetPoint("TOPLEFT", castingNpScaleValue, "BOTTOMLEFT", -12, -3)
+    CreateTooltipTwo(hideByCastEnabled, "Hide Non-Casters During Cast", "When any enemy starts an interruptible cast, the health bars of all non-casting enemies are hidden.\nRestores instantly once all casters finish.", "Makes it much easier to see and kick the right target in a crowd.")
+
+    local hideByCastOnlyInterruptable = CreateCheckbox("hideByCastOnlyInterruptable", "Interruptible Only", hideByCastEnabled)
+    hideByCastOnlyInterruptable:SetPoint("LEFT", hideByCastEnabled.text, "RIGHT", -1, 0)
+    CreateTooltipTwo(hideByCastOnlyInterruptable, "Interruptible Casts Only", "Only hide other nameplates when the triggering cast can be interrupted.", "Non-interruptible casts (shield icon) will not trigger the hiding.")
+
     local castBarRecolor = CreateCheckbox("castBarRecolor", "Re-color castbar", enableCastbarCustomization)
-    castBarRecolor:SetPoint("TOPLEFT", castBarHeight, "BOTTOMLEFT", -12, -3)
+    castBarRecolor:SetPoint("TOPLEFT", hideByCastEnabled, "BOTTOMLEFT", 0, -3)
 
     local function UpdateColorSquare(icon, r, g, b, a)
         if r and g and b and a then

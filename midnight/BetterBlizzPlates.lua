@@ -435,6 +435,11 @@ local defaultSettings = {
     castBarEmphasisHeightValue = 24,
     castBarEmphasisSparkHeight = 35,
     castBarEmphasisHealthbarColor = false,
+    castingNpScaleEnabled = false,
+    castingNpScaleValue = 1.3,
+    castingNpScaleOnlyInterruptable = false,
+    hideByCastEnabled = false,
+    hideByCastOnlyInterruptable = true,
     castBarDragonflightShield = true,
     castBarShieldAnchor = "LEFT",
     castBarShieldXPos = 0,
@@ -5278,6 +5283,15 @@ local function HandleNamePlateRemoved(unit)
     end
 
     frame.executeIndicatorInRange = nil
+
+    if frame.bbpIsCasting then
+        frame.bbpIsCasting = nil
+        BBP.activeCasterCount = math.max(0, BBP.activeCasterCount - 1)
+        if BBP.activeCasterCount == 0 then
+            BBP.RestoreNonCasters()
+        end
+    end
+    frame.bbpNonCasterHidden = nil
 
 end
 
